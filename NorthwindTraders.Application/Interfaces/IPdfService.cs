@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NorthwindTraders.Application.DTOs;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,5 +9,6 @@ namespace NorthwindTraders.Application.Interfaces
 {
     public interface IPdfService
     {
+        Task<byte[]> GenerateOrderPdf(OrderDTO orderDto);
     }
 }

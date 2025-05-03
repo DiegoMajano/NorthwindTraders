@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState , useRef} from "react";
 import OrderLines from "./components/OrderLines";
 import AddressMap from "./components/AddressMap";
-import { FaCheck, FaEllipsisH } from "react-icons/fa";
-import { createOrder, getAllOrders, getOrderById, updateOrder, deleteOrder } from "./services/orderService";
+import { FaCheck, FaAngleRight, FaAngleLeft  } from "react-icons/fa6";
+import { createOrder, getAllOrders, getOrderById, updateOrder, deleteOrder, downloadOrderPdf } from "./services/orderService";
 import { fetchEmployees, fetchCustomers } from "./services/apiService";
+import Swal from "sweetalert2";
+import { GoogleMap, useJsApiLoader, StandaloneSearchBox } from '@react-google-maps/api';
 
+
+const googleLibraries = ['places']; 
 function App() {
-  const orderId = 10248;
+  const [orderId, setOrderId] = useState(11087); //10248 es el primer id de orden
+  const [isChange, setIsChange] = useState(0);
   const [orderData, setOrderData] = useState({
     orderId: 0,
     customerId: "",
@@ -55,27 +60,20 @@ function App() {
   });  
   const [employees, setEmployees] = useState([])
   const [customers, setCustomers] = useState([])
+  const [validIds, setValidIds] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const searchBoxRef = useRef(null);
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        const data = await getOrderById(orderId);
-        const employeesData = await fetchEmployees()
-        const customersData = await fetchCustomers()
+const handleLoad = ref => {
+  searchBoxRef.current = ref;
+};
 
-        console.log(employeesData, customersData)
-        
-        setOriginalData(data);
-        setOrderData(data);
-        setEmployees(employeesData)
-        setCustomers(customersData)
-      } catch (error) {
-        console.error("Error al cargar la orden", error);
-      }
-    };
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: googleLibraries,
+  });
 
-    fetchOrder();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -98,10 +96,13 @@ function App() {
   };
 
   const handleNewOrder = () => {
+    const today = new Date();
+    const formattedDate = today.toISOString(); 
+    
     setOrderData({
       customerId: "",
       employeeId: 0,
-      orderDate: "",
+      orderDate: formattedDate,
       shipAddress: "",
       shipCity: "",
       shipPostalCode: "",
@@ -113,7 +114,7 @@ function App() {
           lineId: 1,
           productId: "",
           quantity: 1,
-          unitPrice: 0,
+          unitPrice:0,
           total: 0,
           status: 1,
         },
@@ -126,33 +127,64 @@ function App() {
       const newItems = [];
       const updatedItems = [];
       const deletedItems = [];
+      const removedProductIds = originalData.orderDetails
+        .filter(
+          (original) =>
+            !orderData.orderDetails.some(
+              (current) => current.productId === original.productId
+            )
+        )
+        .map((removed) => removed.productId);
 
-      console.log("Order data before save:", orderData);
+        const newProductIds = orderData.orderDetails
+        .filter(
+          (original) =>
+            !originalData.orderDetails.some(
+              (current) => current.productId === original.productId
+            )
+        )
+        .map((newed) => newed.productId);
 
-      orderData.orderDetails.forEach((orderDetail) => {
+        newProductIds.forEach((productId) => {
+            const orderDetail = orderData.orderDetails.find(
+              (detail) => detail.productId === productId
+            );
+            newItems.push({
+                productId: orderDetail.productId,
+                unitPrice: orderDetail.unitPrice,
+                quantity: orderDetail.quantity,
+                discount: 0,
+            });
+        });
+        removedProductIds.forEach((productId) => {
+        deletedItems.push({
+          orderID: orderData.orderId,
+          productID: productId,
+        });
+      });
+
+        orderData.orderDetails.forEach((orderDetail) => {
         const originalLine = originalData.orderDetails.find(
           (l) => l.lineId === orderDetail.lineId
         );
-
+  
         if (orderDetail.status === 0) {
-          // Si la línea está marcada como eliminada
           deletedItems.push({
             orderID: orderData.orderId,
             productID: orderDetail.productId,
           });
         } else if (!originalLine) {
-          // Si es una línea nueva (no está en los datos originales)
           newItems.push({
             productId: orderDetail.productId,
             unitPrice: orderDetail.unitPrice,
             quantity: orderDetail.quantity,
             discount: 0,
           });
+          
         } else if (
           orderDetail.quantity !== originalLine.quantity ||
           orderDetail.unitPrice !== originalLine.unitPrice
         ) {
-          // Si es una línea existente y fue modificada
           updatedItems.push({
             orderID: orderData.orderId,
             productID: orderDetail.productId,
@@ -163,63 +195,182 @@ function App() {
         }
       });
 
-      const orderDataToSend = {
-        orderId: orderData.orderId,
-        customerId: orderData.customerId,
-        employeeId: orderData.employeeId,
+      
+      
+      let orderDataToSend = {
+          orderId: orderData.orderId,
+          customerId: orderData.customerId,
+          employeeId: Number(orderData.employeeId),
         orderDate: orderData.orderDate,
         shipAddress: orderData.shipAddress,
         shipCity: orderData.shipCity,
         shipPostalCode: orderData.shipPostalCode,
         shipCountry: orderData.shipCountry,
-        updatedItems: updatedItems,
-        newItems: newItems,
-        deletedItems: deletedItems,
-      };
+        updatedItems,
+        newItems,
+        deletedItems,
+    }
 
-      console.log("Order data to send:", orderDataToSend);
+    if (orderData.orderId === undefined){
+        let orderDetails = []
+        orderData.orderDetails.forEach((orderDetail) => {
+            orderDetails.push({
+                productId: orderDetail.productId,
+                unitPrice: orderDetail.unitPrice,
+                quantity: orderDetail.quantity,
+                discount: 0,
+              });
+            });
+
+        orderDataToSend = {...orderDataToSend, orderDetails}    
+      }
 
       if (!orderData.orderId) {
         const response = await createOrder(orderDataToSend);
-        console.log("Order created:", response);
-      } else {
-        const response = await updateOrder(
-          orderDataToSend.orderId,
-          orderDataToSend
-        );
-        console.log("Order updated:", response);
-      }
-
-      alert("Order saved successfully!");
+        setOrderId(response.orderId);
+        setValidIds((prev) => [...prev, response.orderId]);
+        setIsChange(prev => prev + 1)
+        await Swal.fire("Creado", "La orden se creó correctamente", "success");
+    } else {
+        const response = await updateOrder(orderDataToSend.orderId, orderDataToSend);
+        setOrderId(response.orderId);
+        setIsChange(prev => prev + 1)
+        await Swal.fire("Actualizado", "La orden se actualizó correctamente", "success");
+    }
     } catch (error) {
-      console.error("Failed to save order:", error);
-      alert("Error saving order.");
+        console.error("Failed to save order:", error);
+        await Swal.fire("Error", "Hubo un error al guardar la orden", "error");
     }
   };
+  
 
-  const handleDeleteOrder = () => {
-    if (window.confirm("Are you sure you want to delete this order?")) {
-      handleNewOrder();
-      alert("Order deleted successfully!");
+  const handleDeleteOrder = async () => {
+    const result = await Swal.fire({
+        title: "¿Estás seguro?",
+        text: "Esta acción eliminará la orden actual",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+      });
+    
+      if (result.isConfirmed) {
+        await deleteOrder(orderId);        
+        await Swal.fire("Eliminado", "La orden fue eliminada", "success");
+        setIsChange(prev => prev + 1)
+      }
+  };
+
+  const handleGenerateOrder = async (orderId) => {
+    try {
+      await downloadOrderPdf(orderId); 
+      
+      await Swal.fire("Generado", "El documento de la orden fue generado", "success");
+    } catch (error) {
+        console.error("Error al generar el PDF:", error);
+      await Swal.fire("Error", "Hubo un problema al generar el PDF", "error");
     }
   };
+  
 
-  const handleGenerateOrder = () => {
-    console.log("Generating order document for:", orderData);
-    alert("Order document generated successfully!");
-  };
-
-  const updateCoordinates = (newCoordinates) => {
+  const updateCoordinates = ({ lat, lng }) => {
+    console.log("updateCoordinates", lat, lng);
+    
     setOrderData((prev) => ({
       ...prev,
-      validatedAddress: {
-        ...prev.validatedAddress,
-        coordinates: newCoordinates,
-      },
+      latitude: lat,
+      longitude: lng,
     }));
   };
+  
+  
 
+  const handleNextOrder = () => {
+    const currentIndex = validIds.indexOf(orderId);
+    if (currentIndex >= 0 && currentIndex < validIds.length - 1) {
+        setOrderId(validIds[currentIndex + 1]);
+        setIsChange(prev => prev + 1)
+    } else {
+        Swal.fire("Atención", "No hay más órdenes disponibles", "info");
+    }
+}
+
+const handlePreviousOrder = async () => {
+    const currentIndex = validIds.indexOf(orderId);
+    if (currentIndex > 0) {
+        setOrderId(validIds[currentIndex - 1]);
+        setIsChange(prev => prev + 1)
+    } else {
+        Swal.fire("Atención", "No hay órdenes anteriores disponibles", "info");
+    }
+}
+
+const onPlacesChanged = () => {
+    const places = searchBoxRef.current.getPlaces();
+    if (places && places.length > 0) {
+      const place = places[0];
+      const address = place.formatted_address;
+      const components = place.address_components;
+  
+      const getComponent = (types) =>
+        components.find((c) => types.some((t) => c.types.includes(t)))?.long_name || '';
+  
+      const city = getComponent(['locality', 'administrative_area_level_2']);
+      const postalCode = getComponent(['postal_code']);
+      const country = getComponent(['country']);
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+  
+      setOrderData((prev) => ({
+        ...prev,
+        shipAddress: address,
+        shipCity: city,
+        shipPostalCode: postalCode,
+        shipCountry: country,
+        latitude: lat,
+        longitude: lng,
+      }));
+  
+      updateCoordinates({ lat, lng });
+    }
+  };
+
+useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        if(isChange <= 0){
+        
+            const [orders, employeesData, customersData, data] = await Promise.all([
+                getAllOrders(),
+                fetchEmployees(),
+                fetchCustomers(),
+                getOrderById(orderId) 
+            ]);
+            const ids = orders.map((order) => order.orderId);
+            setValidIds(ids)
+            setEmployees(employeesData)
+            setCustomers(customersData)   
+            setOriginalData(data);
+            setOrderData(data);
+            setOrderId(ids[0]);
+        } else{
+            const data = await getOrderById(orderId)            
+            setOriginalData(data);
+            setOrderData(data);
+        }
+
+        setIsLoading(false);
+        
+      } catch (error) {
+        console.error("Error al cargar la orden", error);
+      }
+    };
+
+    fetchOrder();        
+
+  }, [isChange, orderId]);
   return (
+    !isLoading && (
     <div className="m-3 w-full rounded-2xl bg-gray-200">
       <div className=" rounded-md shadow-sm border p-6">
         {/* Top Action Buttons */}
@@ -234,13 +385,13 @@ function App() {
             Delete
           </button>
           <div className="ml-auto flex gap-2">
-            <button className="secondary" onClick={handleNewOrder}>
-              <p>before</p>
+            <button className="secondary" onClick={handlePreviousOrder}>
+                <FaAngleLeft />
             </button>
-            <button className="secondary" onClick={handleNewOrder}>
-              <p>after</p>
+            <button className="secondary" onClick={handleNextOrder}>
+                <FaAngleRight />
             </button>
-            <button className="primary" onClick={handleGenerateOrder}>
+            <button className="primary" onClick={()=>handleGenerateOrder(orderId)}>
               Generate
             </button>
             {/* <button className="secondary px-1">
@@ -276,32 +427,37 @@ function App() {
               <input
                 className="bg-gray-200 border rounded-sm px-2 py-1 border-blue-950"
                 name="orderDate"
+                readOnly
                 type="date"
-                value={orderData.orderDate?.split("T")[0] || ""}
+                value={orderData.orderDate?.split("T")[0]}
                 onChange={handleInputChange}
               />
             </div>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Shipping address
-              </label>
-              <div className="flex">
-                <input
-                  name="shipAddress"
-                  className="bg-gray-200 border rounded-sm px-2 py-1 border-blue-950"
-                  value={orderData.shipAddress}
-                  onChange={handleInputChange}
-                />
-                <button className="text-white secondary ml-2 px-1">
-                  <FaCheck className="w-4 h-4" />
-                </button>
-              </div>
+                <label className="block text-sm font-medium mb-1">Shipping address</label>
+
+                <div>
+                    {isLoaded && (
+                    <StandaloneSearchBox
+                        onLoad={handleLoad}
+                        onPlacesChanged={onPlacesChanged}
+                    >
+                        <input
+                        type="text"
+                        placeholder="Search a place"
+                        className="bg-gray-200 border rounded-sm px-2 py-1 border-blue-950 w-full"
+                        />
+                    </StandaloneSearchBox>
+                    )}
+                </div>
+
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Employee</label>
               <select
+              type="number"
                 name="employeeId"
                 value={orderData.employeeId}
                 onChange={handleInputChange}
@@ -371,7 +527,7 @@ function App() {
                 readOnly
                 className="bg-gray-200 border rounded-sm px-.5 py-1 border-blue-950"
                 name="validatedAddress.coordinates"
-                value=""
+                value={`${orderData.latitude ? orderData.latitude : 41.8781}, ${orderData.longitude ? orderData.longitude : -87.6298}`} 
                 onChange={handleInputChange}
               />
             </div>
@@ -379,7 +535,7 @@ function App() {
 
           {/* Map */}
 
-          {/*}
+          {
           <AddressMap
             coordinates={`${orderData.latitude},${orderData.longitude}`}
             updateCoordinates={updateCoordinates}
@@ -389,11 +545,11 @@ function App() {
                 postalCode: orderData.shipPostalCode,
                 country: orderData.shipCountry,
               }}
-          />*/}
+          />}
         </div>
       </div>
     </div>
-  );
+  ));
 }
 
 export default App;

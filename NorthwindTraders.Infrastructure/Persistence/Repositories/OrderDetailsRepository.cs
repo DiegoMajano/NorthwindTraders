@@ -22,6 +22,7 @@ namespace NorthwindTraders.Infrastructure.Persistence.Repositories
             return await _context.OrderDetails
                                  .Where(od => od.OrderId == orderId)
                                  .Where(od => od.ProductId == productId)
+                                 .Include(od => od.Product)
                                  .ToListAsync();
         }
 

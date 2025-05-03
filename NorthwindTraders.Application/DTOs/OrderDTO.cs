@@ -11,6 +11,8 @@ namespace NorthwindTraders.Application.DTOs
         public int OrderId { get; set; }
         public string? CustomerId { get; set; } = string.Empty;
         public int? EmployeeId { get; set; } = default;
+        public string? ContactName { get; set; } = string.Empty;
+        public string? EmployeeName { get; set; } = string.Empty;
         public DateTime? OrderDate { get; set; } = DateTime.MinValue;
 
         public string? ShipAddress { get; set; } = string.Empty;

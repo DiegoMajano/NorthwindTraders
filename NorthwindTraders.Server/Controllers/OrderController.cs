@@ -90,5 +90,20 @@ namespace NorthwindTraders.Server.Controllers
             await _orderService.GenerateAllOrdersPdfAsync();
             return NoContent();
         }
+
+        [HttpGet("order/{orderId}/pdf")]
+        public async Task<IActionResult> GetOrderPdf(int orderId)
+        {
+            try
+            {
+                var pdfBytes = await _orderService.GenerateOrderPdfAsync(orderId);
+                return File(pdfBytes, "application/pdf", $"Order_{orderId}.pdf");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
     }
 }

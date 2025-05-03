@@ -29,6 +29,7 @@ export const createOrder = async (orderData) => {
       }
       const orders = await response.json();
       orders.forEach((order) => {
+        order.orderDate = order.orderDate?.split("T")[0]
         order.orderDetails.forEach((detail, index) => {
             detail.id=index+1;
         }
@@ -53,7 +54,6 @@ export const createOrder = async (orderData) => {
         throw new Error('Error al obtener la orden');
       }
       const order = await response.json();
-      console.log(order);
         order.orderDetails.forEach((detail, index) => {
             detail.lineId=index+1;
             detail.status=1;
@@ -75,8 +75,6 @@ export const createOrder = async (orderData) => {
         },
         body: JSON.stringify(orderData),
       });
-  
-      console.log(response);        
       if (!response.ok) {
         throw new Error('Error al actualizar la orden', response.statusText);
       }
@@ -106,3 +104,30 @@ export const createOrder = async (orderData) => {
     }
   };
   
+  export const downloadOrderPdf = async (orderId) => {
+    try {
+      const response = await fetch(`http://localhost:5273/api/orders/order/${orderId}/pdf`, {
+        method: 'GET',
+      });
+  
+      console.log(response);
+      
+      if (!response.ok) {
+        throw new Error('Error al generar el PDF de la orden');
+      }
+  
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Order_${orderId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+  
+    } catch (error) {
+      console.error('Error al descargar el PDF:', error);
+      throw error;
+    }
+  };

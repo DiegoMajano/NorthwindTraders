@@ -12,5 +12,7 @@ namespace NorthwindTraders.Application.DTOs
         public decimal UnitPrice { get; set; }
         public short Quantity { get; set; }
         public float Discount { get; set; }
+        public ProductDTO? productDTO { get; set; } = new ProductDTO();
+        public string? ProductName { get; set; } = string.Empty;
     }
 }

@@ -23,6 +23,8 @@ namespace NorthwindTraders.Infrastructure.Persistence.Repositories
         {
             return await _context.Orders
                 .Include(o => o.OrderDetails)
+                .Include(o => o.Employee)
+                .Include(o => o.Customer)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
         }
 

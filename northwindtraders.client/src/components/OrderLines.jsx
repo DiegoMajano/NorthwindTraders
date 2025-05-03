@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { fetchCustomers, fetchProducts, fetchEmployees } from "../services/apiService"
+import { fetchProducts } from "../services/apiService"
 
 function OrderLines({ lines, setLines }) {
   const [products, setProducts] = useState([])
@@ -9,9 +9,7 @@ function OrderLines({ lines, setLines }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const productsData = await fetchProducts()
-        console.log(productsData);
-        
+        const productsData = await fetchProducts()              
         setProducts(productsData)
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -44,46 +42,50 @@ function OrderLines({ lines, setLines }) {
   }
   
   const handleLineChange = (lineId, updates) => {
-    setLines(
-      lines.map((line) => {
-        if (line.lineId === lineId) {
-          let updatedLine = {
-            ...line,
-            ...updates, 
-          }
-
-          
-          if (updates.productId){
-
-            updatedLine = { ...updatedLine, status: 0 };
-
-            const product = products.find((p) => p.id === updates.productId);
-          const newLine = {
-            lineId: lines.length+1,
-            productId: updates.productId,
-            quantity: line.quantity, 
-            unitPrice: product ? product.unitPrice : 0, 
-            total: product ? product.unitPrice * line.quantity : 0,
-            status: 1, 
-          };
-
-          return [...lines, updatedLine, newLine]; 
-          } 
+    
+    const updatedLines = lines.map((line) => {
+      if (line.lineId === lineId) {
+        let updatedLine = {
+          ...line,
+          ...updates,
+        };
   
-          if (
-            typeof updatedLine.quantity === "number" &&
-            typeof updatedLine.unitPrice === "number"
-          ) {
-            updatedLine.total = updatedLine.quantity * updatedLine.unitPrice
-          }
-  
-          return updatedLine
+        if (
+          typeof updatedLine.quantity === "number" &&
+          typeof updatedLine.unitPrice === "number"
+        ) {
+          updatedLine.total = updatedLine.quantity * updatedLine.unitPrice;
         }
-        return line
-      })
-    )
-  } 
- 
+  
+        // Si hay un productId nuevo, solo actualizamos la línea, el nuevo lo agregamos luego
+        if (updates.productId && updates.total===0) {
+          updatedLine.status = 0;
+        }
+  
+        return updatedLine;
+      }
+      return line;
+    });
+  
+    // Si se quiere agregar una nueva línea porque hay un nuevo producto:
+    if (updates.productId && updates.total===0) {
+      const product = products.find((p) => p.id === updates.productId);
+      const existingLine = lines.find((l) => l.lineId === lineId);
+      const newLine = {
+        lineId: lines.length + 1,
+        productId: updates.productId,
+        quantity: existingLine ? existingLine.quantity : 1,
+        unitPrice: product ? product.unitPrice : 0,
+        total: product ? product.unitPrice * (existingLine?.quantity || 1) : 0,
+        status: 1,
+      };
+  
+      setLines([...updatedLines, newLine]);
+    } else {
+      setLines(updatedLines);
+    }
+  };
+
 
   return (
     <div className="mt-6">

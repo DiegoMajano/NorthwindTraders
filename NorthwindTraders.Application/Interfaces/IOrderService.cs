@@ -22,6 +22,7 @@ namespace NorthwindTraders.Application.Interfaces
         Task<bool> DeleteOrderAsync(int orderId);
 
         Task GenerateAllOrdersPdfAsync();
+        Task<byte[]> GenerateOrderPdfAsync(int orderId);
     }
 
 }

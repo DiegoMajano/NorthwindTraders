@@ -31,7 +31,7 @@ namespace NorthwindTraders.Infrastructure
             services.AddTransient<IEmployeeService, EmployeeService>();
             services.AddTransient<ICustomerService, CustomerService>();
             services.AddTransient<IProductService, ProductService>();
-
+            services.AddTransient<IPdfService, PdfService>();
 
             return services;
         }

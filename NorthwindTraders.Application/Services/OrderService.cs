@@ -17,15 +17,18 @@ namespace NorthwindTraders.Application.Services
         private readonly IOrderRepository _orderRepository;
         private readonly IOrderDetailsRepository _detailsRepository;
         private readonly IGeocodingService _geocodingService;
+        private readonly IPdfService _pdfService;
 
         public OrderService(
             IOrderRepository orderRepository,
             IOrderDetailsRepository detailsRepository,
-            IGeocodingService geocodingService)
+            IGeocodingService geocodingService,
+            IPdfService pdfService)
         {
             _orderRepository = orderRepository;
             _detailsRepository = detailsRepository;
             _geocodingService = geocodingService;
+            _pdfService = pdfService;
         }
 
         public async Task<OrderDTO> CreateOrderAsync(CreateOrderDTO createOrderDto)
@@ -101,6 +104,8 @@ namespace NorthwindTraders.Application.Services
                 OrderId = order.OrderId,
                 OrderDate = order.OrderDate ?? DateTime.MinValue,
                 CustomerId = order.CustomerId,
+                ContactName = order.Customer?.ContactName ?? string.Empty,
+                EmployeeName = order.Employee?.FirstName + " " + order.Employee?.LastName,
                 EmployeeId = order.EmployeeId ?? default,
                 ShipAddress = order.ShipAddress ?? string.Empty,
                 ShipCity = order.ShipCity ?? string.Empty,
@@ -109,6 +114,7 @@ namespace NorthwindTraders.Application.Services
                 OrderDetails = order.OrderDetails.Select(d => new OrderDetailsDTO
                 {
                     ProductId = d.ProductId,
+                    ProductName = d.Product?.ProductName,
                     UnitPrice = d.UnitPrice,
                     Quantity = d.Quantity,
                     Discount = d.Discount
@@ -123,6 +129,13 @@ namespace NorthwindTraders.Application.Services
                 throw new Exception("Order not found");
 
             // Actualizar datos generales
+
+            if(order.CustomerId != updateOrderDto.CustomerId)
+                order.CustomerId = updateOrderDto.CustomerId;
+
+            if (order.EmployeeId != updateOrderDto.EmployeeId)
+                order.EmployeeId = updateOrderDto.EmployeeId;
+
             if (order.ShipAddress != updateOrderDto.ShipAddress)
                 order.ShipAddress = updateOrderDto.ShipAddress;
 
@@ -203,10 +216,16 @@ namespace NorthwindTraders.Application.Services
         public async Task GenerateAllOrdersPdfAsync()
         {
             var orders = await _orderRepository.GetAllAsync();
-
-            // Aquí usarías una librería como iTextSharp, QuestPDF o PdfSharp para generar el PDF.
-            // Puedes crear un servicio separado para generación de PDF si prefieres separar responsabilidades.
             throw new NotImplementedException("Generación de PDF aún no implementada");
+        }
+
+        public async Task<byte[]> GenerateOrderPdfAsync(int orderId)
+        {
+            var order = await GetOrderByIdAsync(orderId);
+            if (order == null)
+                throw new Exception("Order not found");
+
+            return await _pdfService.GenerateOrderPdf(order);
         }
     }
 
