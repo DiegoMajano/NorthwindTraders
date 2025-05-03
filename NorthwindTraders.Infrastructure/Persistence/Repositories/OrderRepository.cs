@@ -22,9 +22,10 @@ namespace NorthwindTraders.Infrastructure.Persistence.Repositories
         public async Task<Order> GetByIdAsync(int id)
         {
             return await _context.Orders
-                .Include(o => o.OrderDetails)
                 .Include(o => o.Employee)
                 .Include(o => o.Customer)
+                .Include(o => o.OrderDetails)
+                .ThenInclude(od => od.Product)
                 .FirstOrDefaultAsync(o => o.OrderId == id);
         }
 
